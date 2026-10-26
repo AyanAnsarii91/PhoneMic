@@ -21,8 +21,13 @@ export interface ServerInstance {
 export function createHttpServer(config: HttpServerConfig): ServerInstance {
   const addresses = getLocalIPAddresses().map(a => a.address);
 
-  // Phone app build path if bundled
-  const phoneDistPath = path.resolve(__dirname, '../../phone/dist');
+  // Phone app build path
+  const candidatePaths = [
+    path.resolve(__dirname, '../../../phone/dist'),
+    path.resolve(__dirname, '../../phone/dist'),
+    path.resolve(process.cwd(), 'phone/dist')
+  ];
+  const phoneDistPath = candidatePaths.find(p => fs.existsSync(p)) || candidatePaths[0];
   const hasPhoneDist = fs.existsSync(phoneDistPath);
 
   const requestHandler: http.RequestListener = (req, res) => {

@@ -8,7 +8,7 @@ import { LatencyStats } from './components/LatencyStats';
 import { PairingModal } from './components/PairingModal';
 import { SettingsModal } from './components/SettingsModal';
 import { AlertTriangle, Mic, QrCode, Sliders, ShieldCheck } from 'lucide-react';
-import { DEFAULT_PORT } from '@phonemic/shared';
+import { DEFAULT_PORT, sanitizeHostAndPort } from '@phonemic/shared';
 
 export const App: React.FC = () => {
   const [isPairingOpen, setIsPairingOpen] = useState(false);
@@ -84,16 +84,21 @@ export const App: React.FC = () => {
   // Check URL parameters on mount and auto-pair if present
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const queryIp = params.get('ip');
+    const queryIp = params.get('ip') || (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' ? window.location.hostname : '');
     const queryPin = params.get('pin');
-    const queryPort = params.get('port');
+    const queryPort = params.get('port') || window.location.port;
     const queryProto = params.get('proto');
 
     if (queryIp && queryPin) {
+      const protoPref = (queryProto === 'wss' || queryProto === 'ws')
+        ? queryProto
+        : (window.location.protocol === 'https:' ? 'wss' : 'ws');
+      const sanitized = sanitizeHostAndPort(queryIp, parseInt(queryPort || `${DEFAULT_PORT}`, 10), protoPref);
+
       const config: PhoneSocketConfig = {
-        ip: queryIp,
-        port: parseInt(queryPort || `${DEFAULT_PORT}`, 10),
-        protocol: (queryProto === 'wss' || window.location.protocol === 'https:') ? 'wss' : 'ws',
+        ip: sanitized.host,
+        port: sanitized.port,
+        protocol: sanitized.protocol,
         pin: queryPin,
         deviceName: /Android/i.test(navigator.userAgent) ? 'Android Phone' : 'Mobile Phone'
       };

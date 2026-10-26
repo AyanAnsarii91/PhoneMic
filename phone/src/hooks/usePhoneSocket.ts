@@ -5,7 +5,8 @@ import {
   WSServerMessage,
   RECONNECT_INTERVAL_MS,
   MAX_RECONNECT_ATTEMPTS,
-  PING_INTERVAL_MS
+  PING_INTERVAL_MS,
+  sanitizeHostAndPort
 } from '@phonemic/shared';
 import { packAudioPacket } from '../utils/pcm';
 
@@ -113,11 +114,17 @@ export function usePhoneSocket() {
   }, [clearTimers]);
 
   const connect = useCallback((config: PhoneSocketConfig) => {
-    configRef.current = config;
+    const sanitized = sanitizeHostAndPort(config.ip, config.port, config.protocol);
+    configRef.current = {
+      ...config,
+      ip: sanitized.host,
+      port: sanitized.port,
+      protocol: sanitized.protocol
+    };
     manualDisconnectRef.current = false;
     clearTimers();
 
-    const wsUrl = `${config.protocol}://${config.ip}:${config.port}/ws`;
+    const wsUrl = `${sanitized.protocol}://${sanitized.host}:${sanitized.port}/ws`;
     setConnectionState('connecting');
     setErrorMessage(null);
 

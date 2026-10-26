@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
-import { ServerInfo, NetworkAddressItem } from '@phonemic/shared';
+import { ServerInfo, NetworkAddressItem, sanitizeHostAndPort } from '@phonemic/shared';
 import { Check, Copy, Network, QrCode, RefreshCw, Shield, ExternalLink } from 'lucide-react';
 
 interface QRCodeCardProps {
@@ -145,7 +145,8 @@ export const QRCodeCard: React.FC<QRCodeCardProps> = ({
             onClick={() => {
               const custom = prompt('Enter PC IP Address (e.g. 10.106.174.208):', serverInfo?.selectedAddress || '10.106.174.208');
               if (custom && custom.trim()) {
-                onSelectIp(custom.trim());
+                const s = sanitizeHostAndPort(custom.trim(), serverInfo?.port || 8990);
+                onSelectIp(s.host);
               }
             }}
             style={{

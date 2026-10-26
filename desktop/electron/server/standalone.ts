@@ -1,12 +1,13 @@
 import { createHttpServer } from './httpServer.js';
 import { PhoneMicWSServer } from './wsServer.js';
 import { getLocalIPAddresses, getPrimaryLANIP } from './networkUtils.js';
-import { DEFAULT_PORT } from '@phonemic/shared';
+import { DEFAULT_PORT, sanitizeHostAndPort } from '@phonemic/shared';
 
 const SERVER_PORT = DEFAULT_PORT;
 const USE_HTTPS = true;
 
-const primaryIP = getPrimaryLANIP();
+const rawPrimaryIP = getPrimaryLANIP();
+const primaryIP = sanitizeHostAndPort(rawPrimaryIP, SERVER_PORT).host;
 const addresses = getLocalIPAddresses();
 
 console.log('====================================================');

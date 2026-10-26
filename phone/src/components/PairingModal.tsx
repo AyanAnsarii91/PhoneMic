@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { PhoneSocketConfig } from '../hooks/usePhoneSocket';
 import { QrCode, Server, Shield, Smartphone, X } from 'lucide-react';
-import { DEFAULT_PORT } from '@phonemic/shared';
+import { DEFAULT_PORT, sanitizeHostAndPort } from '@phonemic/shared';
 
 interface PairingModalProps {
   isOpen: boolean;
@@ -31,28 +31,35 @@ export const PairingModal: React.FC<PairingModalProps> = ({
     else if (/iPhone|iPad/i.test(ua)) detectedName = 'iOS Device';
     setDeviceName(detectedName);
 
-    // Read URL query parameters from QR code
+    // Read URL query parameters from QR code or fallback to current origin hostname
     const params = new URLSearchParams(window.location.search);
-    const queryIp = params.get('ip');
-    const queryPort = params.get('port');
+    const queryIp = params.get('ip') || (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' ? window.location.hostname : '');
+    const queryPort = params.get('port') || window.location.port;
     const queryPin = params.get('pin');
     const queryProto = params.get('proto');
 
-    if (queryIp) setIp(queryIp);
-    if (queryPort) setPort(queryPort);
+    if (queryIp) {
+      const sanitized = sanitizeHostAndPort(queryIp, parseInt(queryPort || `${DEFAULT_PORT}`, 10));
+      setIp(sanitized.host);
+      setPort(sanitized.port.toString());
+      if (queryProto === 'wss' || queryProto === 'ws') setProtocol(queryProto);
+      else if (window.location.protocol === 'https:') setProtocol('wss');
+      else setProtocol(sanitized.protocol);
+    }
     if (queryPin) setPin(queryPin);
-    if (queryProto === 'wss' || queryProto === 'ws') setProtocol(queryProto);
-    else if (window.location.protocol === 'https:') setProtocol('wss');
-    
-    // Auto-fill from localStorage if previously paired
+
+    // Auto-fill from localStorage if previously paired and no URL params
     const savedConfig = localStorage.getItem('phonemic_last_config');
-    if (savedConfig && !queryIp) {
+    if (savedConfig && !params.get('ip')) {
       try {
         const parsed = JSON.parse(savedConfig);
-        if (parsed.ip) setIp(parsed.ip);
-        if (parsed.port) setPort(parsed.port.toString());
+        if (parsed.ip) {
+          const s = sanitizeHostAndPort(parsed.ip, parseInt(parsed.port, 10) || DEFAULT_PORT, parsed.protocol);
+          setIp(s.host);
+          setPort(s.port.toString());
+          if (s.protocol) setProtocol(s.protocol);
+        }
         if (parsed.pin) setPin(parsed.pin);
-        if (parsed.protocol) setProtocol(parsed.protocol);
       } catch {
         // ignore
       }
@@ -65,10 +72,13 @@ export const PairingModal: React.FC<PairingModalProps> = ({
     e.preventDefault();
     if (!ip.trim() || !pin.trim()) return;
 
+    // Ensure host and port are strictly separated (never duplicate :port)
+    const sanitized = sanitizeHostAndPort(ip, parseInt(port, 10) || DEFAULT_PORT, protocol);
+
     const config: PhoneSocketConfig = {
-      ip: ip.trim(),
-      port: parseInt(port, 10) || DEFAULT_PORT,
-      protocol,
+      ip: sanitized.host,
+      port: sanitized.port,
+      protocol: sanitized.protocol,
       pin: pin.trim(),
       deviceName: deviceName.trim() || 'Android Phone'
     };
@@ -145,7 +155,17 @@ export const PairingModal: React.FC<PairingModalProps> = ({
               type="text"
               placeholder="e.g. 192.168.1.50"
               value={ip}
-              onChange={(e) => setIp(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val.includes(':') || val.includes('//')) {
+                  const s = sanitizeHostAndPort(val, parseInt(port, 10) || DEFAULT_PORT, protocol);
+                  setIp(s.host);
+                  setPort(s.port.toString());
+                  setProtocol(s.protocol);
+                } else {
+                  setIp(val);
+                }
+              }}
               required
               style={{
                 width: '100%',

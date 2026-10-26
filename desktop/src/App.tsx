@@ -3,7 +3,8 @@ import {
   ServerInfo,
   AudioPacketTelemetry,
   DeviceInfo,
-  VirtualAudioDeviceStatus
+  VirtualAudioDeviceStatus,
+  sanitizeHostAndPort
 } from '@phonemic/shared';
 import { useDesktopAudio } from './hooks/useDesktopAudio';
 import { QRCodeCard } from './components/QRCodeCard';
@@ -155,24 +156,26 @@ export const App: React.FC = () => {
   }, []);
 
   const handleSelectIp = useCallback(async (ip: string) => {
+    const s = sanitizeHostAndPort(ip, serverInfo?.port || 8990);
+    const cleanIp = s.host;
     if (window.phoneMicDesktop) {
-      const updated = await window.phoneMicDesktop.selectIPAddress(ip);
+      const updated = await window.phoneMicDesktop.selectIPAddress(cleanIp);
       setServerInfo(updated);
     } else {
       setServerInfo(prev => {
         if (!prev) return prev;
         const proto = prev.protocol;
         const wsProto = proto === 'https' ? 'wss' : 'ws';
-        const phoneWebUrl = `${proto}://${ip}:${prev.port}/?ip=${ip}&port=${prev.port}&pin=${prev.pin}&proto=${wsProto}`;
+        const phoneWebUrl = `${proto}://${cleanIp}:${prev.port}/?ip=${cleanIp}&port=${prev.port}&pin=${prev.pin}&proto=${wsProto}`;
         return {
           ...prev,
-          selectedAddress: ip,
+          selectedAddress: cleanIp,
           qrPayload: phoneWebUrl,
           phoneWebUrl
         };
       });
     }
-  }, []);
+  }, [serverInfo?.port]);
 
   return (
     <div style={{

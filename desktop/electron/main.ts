@@ -4,7 +4,7 @@ import { createHttpServer, ServerInstance } from './server/httpServer';
 import { PhoneMicWSServer } from './server/wsServer';
 import { getLocalIPAddresses, getPrimaryLANIP } from './server/networkUtils';
 import { VirtualMicManager } from './audio/virtualMicAdapter';
-import { DEFAULT_PORT } from '@phonemic/shared';
+import { DEFAULT_PORT, sanitizeHostAndPort } from '@phonemic/shared';
 
 let mainWindow: BrowserWindow | null = null;
 let serverInstance: ServerInstance | null = null;
@@ -22,6 +22,10 @@ function constructServerInfo() {
   } else if (!selectedIP) {
     selectedIP = '127.0.0.1';
   }
+
+  // Ensure IP is clean without port
+  const sanitized = sanitizeHostAndPort(selectedIP, SERVER_PORT);
+  selectedIP = sanitized.host;
 
   const pin = wsServer ? wsServer.getPIN() : '0000';
   const proto = USE_HTTPS ? 'https' : 'http';
@@ -139,7 +143,8 @@ ipcMain.handle('regenerate-pin', async () => {
 });
 
 ipcMain.handle('select-ip', async (_, ip: string) => {
-  selectedIP = ip;
+  const s = sanitizeHostAndPort(ip, SERVER_PORT);
+  selectedIP = s.host;
   return constructServerInfo();
 });
 

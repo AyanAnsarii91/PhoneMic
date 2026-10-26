@@ -3,6 +3,7 @@ import { PhoneMicWSServer } from '../desktop/electron/server/wsServer.js';
 import { AudioJitterBuffer } from '../desktop/electron/audio/audioJitterBuffer.js';
 import { VBCableAdapter } from '../desktop/electron/audio/virtualMicAdapter.js';
 import { packAudioPacket } from '../phone/src/utils/pcm.js';
+import { sanitizeHostAndPort } from '../shared/src/utils.js';
 import { WebSocket } from 'ws';
 
 async function runEndToEndVerification() {
@@ -63,8 +64,27 @@ async function runEndToEndVerification() {
     });
   });
 
-  console.log('\n[3/6] Simulating Phone Client connecting & pairing...');
-  const wsUrl = `wss://127.0.0.1:${TEST_PORT}/ws`;
+  console.log('\n[3/6] Testing URL & Host/Port Sanitization (Duplicate Port Prevention)...');
+  const test1 = sanitizeHostAndPort('10.106.174.208:8990', 8990, 'wss');
+  if (test1.host !== '10.106.174.208' || test1.port !== 8990) {
+    throw new Error(`Sanitization failed on "10.106.174.208:8990": got host=${test1.host}, port=${test1.port}`);
+  }
+  const test2 = sanitizeHostAndPort('https://10.106.174.208:8990/wss', 8990, 'ws');
+  if (test2.host !== '10.106.174.208' || test2.port !== 8990 || test2.protocol !== 'wss') {
+    throw new Error(`Sanitization failed on "https://10.106.174.208:8990/wss": got ${JSON.stringify(test2)}`);
+  }
+  console.log('  Sanitization tests passed! Host="10.106.174.208", Port=8990, Protocol=wss');
+
+  console.log('\n[4/6] Simulating Phone Client connecting & pairing...');
+  // Simulate messy input containing embedded port
+  const dirtyHostInput = `127.0.0.1:${TEST_PORT}`;
+  const sanitizedClient = sanitizeHostAndPort(dirtyHostInput, TEST_PORT, 'wss');
+  const wsUrl = `${sanitizedClient.protocol}://${sanitizedClient.host}:${sanitizedClient.port}/ws`;
+  console.log(`  Constructed WebSocket URL: ${wsUrl}`);
+  if (wsUrl.includes(`${TEST_PORT}:${TEST_PORT}`)) {
+    throw new Error(`WebSocket URL contains duplicate port: ${wsUrl}`);
+  }
+
   const clientWs = new WebSocket(wsUrl, {
     rejectUnauthorized: false // accept local self-signed TLS cert
   });
