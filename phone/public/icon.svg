@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="512" height="512">
+  <defs>
+    <linearGradient id="glowGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10b981" />
+      <stop offset="100%" stop-color="#3b82f6" />
+    </linearGradient>
+  </defs>
+  <rect width="24" height="24" rx="6" fill="#090d16" />
+  <rect x="1" y="1" width="22" height="22" rx="5" fill="none" stroke="url(#glowGrad)" stroke-width="0.8" />
+  <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" fill="url(#glowGrad)" />
+  <path d="M19 10v2a7 7 0 0 1-14 0v-2" fill="none" stroke="url(#glowGrad)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+  <line x1="12" y1="19" x2="12" y2="22" stroke="url(#glowGrad)" stroke-width="2" stroke-linecap="round" />
+  <line x1="8" y1="22" x2="16" y2="22" stroke="url(#glowGrad)" stroke-width="2" stroke-linecap="round" />
+</svg>

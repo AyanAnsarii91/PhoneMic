@@ -1,0 +1,17 @@
+{
+  "name": "PhoneMic - Wireless PC Microphone",
+  "short_name": "PhoneMic",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#090d16",
+  "theme_color": "#10b981",
+  "description": "Stream ultra-low latency microphone audio from your phone to your PC over Wi-Fi",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
