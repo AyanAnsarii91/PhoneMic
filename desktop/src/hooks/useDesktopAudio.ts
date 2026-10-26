@@ -1,4 +1,4 @@
-import { useRef, useCallback, useState, useEffect } from 'react';
+import { useRef, useCallback, useState, useEffect, useMemo } from 'react';
 
 export interface AudioDeviceOption {
   deviceId: string;
@@ -6,7 +6,7 @@ export interface AudioDeviceOption {
 }
 
 export function useDesktopAudio() {
-  const [isMonitoring, setIsMonitoring] = useState(false);
+  const [isMonitoring, setIsMonitoring] = useState(true);
   const [monitorVolume, setMonitorVolume] = useState(1.0);
   const [outputDevices, setOutputDevices] = useState<AudioDeviceOption[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>('default');
@@ -33,6 +33,19 @@ export function useDesktopAudio() {
     return audioContextRef.current;
   }, [monitorVolume]);
 
+  // Handle selected output device (e.g. VB-Audio Cable Input)
+  const setOutputDevice = useCallback(async (deviceId: string) => {
+    setSelectedDeviceId(deviceId);
+    const ctx = getAudioContext();
+    if ('setSinkId' in ctx && typeof (ctx as unknown as { setSinkId: (id: string) => Promise<void> }).setSinkId === 'function') {
+      try {
+        await (ctx as unknown as { setSinkId: (id: string) => Promise<void> }).setSinkId(deviceId);
+      } catch (err) {
+        console.warn('Failed to set sinkId on AudioContext:', err);
+      }
+    }
+  }, [getAudioContext]);
+
   // Enumerate available Windows audio output devices
   const refreshOutputDevices = useCallback(async () => {
     try {
@@ -46,10 +59,19 @@ export function useDesktopAudio() {
         }));
 
       setOutputDevices(audioOutputs);
+
+      // Auto-detect VB-Audio Cable Input or PhoneMic virtual device
+      const vbCable = audioOutputs.find(d => {
+        const lower = d.label.toLowerCase();
+        return lower.includes('cable input') || lower.includes('vb-audio') || lower.includes('phonemic');
+      });
+      if (vbCable) {
+        setOutputDevice(vbCable.deviceId);
+      }
     } catch (e) {
       console.warn('Failed to enumerate audio devices:', e);
     }
-  }, []);
+  }, [setOutputDevice]);
 
   useEffect(() => {
     refreshOutputDevices();
@@ -58,19 +80,6 @@ export function useDesktopAudio() {
       navigator.mediaDevices?.removeEventListener('devicechange', refreshOutputDevices);
     };
   }, [refreshOutputDevices]);
-
-  // Handle selected output device (e.g. VB-Audio Cable Input)
-  const setOutputDevice = useCallback(async (deviceId: string) => {
-    setSelectedDeviceId(deviceId);
-    const ctx = getAudioContext();
-    if ('setSinkId' in ctx && typeof (ctx as unknown as { setSinkId: (id: string) => Promise<void> }).setSinkId === 'function') {
-      try {
-        await (ctx as unknown as { setSinkId: (id: string) => Promise<void> }).setSinkId(deviceId);
-      } catch (err) {
-        console.warn('Failed to set sinkId on AudioContext:', err);
-      }
-    }
-  }, [getAudioContext]);
 
   // Change volume
   const handleVolumeChange = useCallback((vol: number) => {
@@ -183,7 +192,7 @@ export function useDesktopAudio() {
     }
   }, [getAudioContext, isPlayingTestTone]);
 
-  return {
+  return useMemo(() => ({
     isMonitoring,
     monitorVolume,
     outputDevices,
@@ -195,5 +204,17 @@ export function useDesktopAudio() {
     playPcmChunk,
     toggleTestTone,
     refreshOutputDevices
-  };
+  }), [
+    isMonitoring,
+    monitorVolume,
+    outputDevices,
+    selectedDeviceId,
+    isPlayingTestTone,
+    toggleMonitoring,
+    handleVolumeChange,
+    setOutputDevice,
+    playPcmChunk,
+    toggleTestTone,
+    refreshOutputDevices
+  ]);
 }

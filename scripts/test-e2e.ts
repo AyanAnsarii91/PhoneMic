@@ -66,6 +66,17 @@ async function runEndToEndVerification() {
     });
   });
 
+  console.log('\n[2b/6] Testing /api/info Endpoint & PIN validation...');
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+  const infoRes = await fetch(`https://127.0.0.1:${TEST_PORT}/api/info`);
+  const infoData = await infoRes.json() as { pin: string; port: number; protocol: string };
+  console.log(`  /api/info responded with HTTP ${infoRes.status}`);
+  console.log(`  Returned PIN: ${infoData.pin} (Matches wsServer: ${infoData.pin === pin ? 'YES' : 'NO'})`);
+  console.log(`  Returned Port: ${infoData.port}`);
+  if (infoData.pin !== pin) {
+    throw new Error(`/api/info PIN mismatch: expected ${pin}, got ${infoData.pin}`);
+  }
+
   console.log('\n[3/6] Testing URL & Host/Port Sanitization (Duplicate Port Prevention)...');
   const test1 = sanitizeHostAndPort('10.106.174.208:8990', 8990, 'wss');
   if (test1.host !== '10.106.174.208' || test1.port !== 8990) {

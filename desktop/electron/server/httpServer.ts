@@ -54,6 +54,10 @@ export function createHttpServer(config: HttpServerConfig): ServerInstance {
 
     // API endpoint for pairing info
     if (url.pathname === '/api/info') {
+      const primaryIP = addresses[0] || '127.0.0.1';
+      console.log(`[API INFO] request received`);
+      console.log(`[API INFO] IP = ${primaryIP}`);
+      console.log(`[API INFO] PIN = ${currentPin}`);
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
         appName: 'PhoneMic',
@@ -123,7 +127,7 @@ export function createHttpServer(config: HttpServerConfig): ServerInstance {
         const content = fs.readFileSync(filePath);
         res.writeHead(200, {
           'Content-Type': mimeTypes[ext] || 'application/octet-stream',
-          'Cache-Control': ext === '.html' ? 'no-cache' : 'public, max-age=31536000'
+          'Cache-Control': ext === '.html' ? 'no-cache, no-store, must-revalidate' : 'public, max-age=31536000'
         });
         res.end(content);
         return;

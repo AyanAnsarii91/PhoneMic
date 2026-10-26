@@ -11,7 +11,19 @@ export default defineConfig({
   },
   base: './',
   server: {
-    port: 5174
+    port: 5174,
+    proxy: {
+      '/api': {
+        target: 'https://127.0.0.1:8990',
+        changeOrigin: true,
+        secure: false
+      },
+      '/status': {
+        target: 'https://127.0.0.1:8990',
+        changeOrigin: true,
+        secure: false
+      }
+    }
   },
   build: {
     outDir: 'dist',

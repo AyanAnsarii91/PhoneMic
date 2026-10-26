@@ -11,6 +11,9 @@ let serverInstance: ServerInstance | null = null;
 let wsServer: PhoneMicWSServer | null = null;
 const virtualMicManager = new VirtualMicManager();
 
+// Ignore self-signed certificate errors for local development loopback
+app.commandLine.appendSwitch('ignore-certificate-errors');
+
 let selectedIP = '';
 const SERVER_PORT = DEFAULT_PORT;
 const USE_HTTPS = true; // HTTPS ensures phone mobile browsers grant getUserMedia mic permissions!
@@ -62,6 +65,13 @@ function startServers() {
     getPin: () => (wsServer ? wsServer.getPIN() : '0000')
   });
 
+  // Initialize and start Virtual Audio Device Adapter (VB-Audio Cable bridge)
+  virtualMicManager.getActiveAdapter().initialize().then(() => {
+    virtualMicManager.getActiveAdapter().start().then(() => {
+      console.log('PhoneMic Virtual Audio Adapter initialized and active (VB-Audio Cable / CABLE Input)');
+    });
+  });
+
   // Create WebSocket Server
   wsServer = new PhoneMicWSServer({
     server: serverInstance.server,
@@ -69,9 +79,15 @@ function startServers() {
       // Convert buffer to number array for IPC transport
       const sampleCount = chunk.pcmBuffer.length / 2;
       const samples: number[] = new Array(sampleCount);
+      const int16Samples = new Int16Array(sampleCount);
       for (let i = 0; i < sampleCount; i++) {
-        samples[i] = chunk.pcmBuffer.readInt16LE(i * 2);
+        const val = chunk.pcmBuffer.readInt16LE(i * 2);
+        samples[i] = val;
+        int16Samples[i] = val;
       }
+
+      // Route audio to Windows Virtual Microphone Adapter (CABLE Input -> CABLE Output)
+      virtualMicManager.getActiveAdapter().writeAudioChunk(int16Samples);
 
       sendToWindow('audio-telemetry', {
         seq: chunk.seq,
@@ -172,6 +188,7 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
+  virtualMicManager.getActiveAdapter().stop();
   if (serverInstance) {
     serverInstance.server.close();
   }

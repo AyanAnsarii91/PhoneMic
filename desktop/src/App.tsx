@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   ServerInfo,
   AudioPacketTelemetry,
@@ -31,6 +31,8 @@ export const App: React.FC = () => {
 
   // Audio Playback / Routing engine
   const audioEngine = useDesktopAudio();
+  const audioEngineRef = useRef(audioEngine);
+  audioEngineRef.current = audioEngine;
 
   // Load server info on mount
   useEffect(() => {
@@ -47,7 +49,7 @@ export const App: React.FC = () => {
         setPacketsReceived(prev => prev + 1);
 
         // Feed into PC audio monitoring / virtual cable destination
-        audioEngine.playPcmChunk(telemetry.pcmData);
+        audioEngineRef.current.playPcmChunk(telemetry.pcmData);
       });
 
       // Listen for device events
@@ -77,10 +79,13 @@ export const App: React.FC = () => {
         unsubLog();
       };
     } else {
-      // Browser Mode: Fetch live server info from running local server
+      // Browser Mode: Fetch live server info from running local server via same-origin Vite proxy
       const fetchServerInfo = async () => {
         try {
-          const res = await fetch('http://127.0.0.1:8990/api/info').catch(() => fetch('https://127.0.0.1:8990/api/info'));
+          const res = await fetch('/api/info')
+            .catch(() => fetch('http://127.0.0.1:8990/api/info'))
+            .catch(() => fetch('https://127.0.0.1:8990/api/info'));
+
           if (res && res.ok) {
             const data = await res.json();
             const ipList = (data.ipAddresses || []).map((ip: string) => ({
@@ -91,7 +96,7 @@ export const App: React.FC = () => {
             const primaryIp = ipList.length > 0 ? ipList[0].address : '10.106.174.208';
             const proto = data.protocol || 'https';
             const wsProto = proto === 'https' ? 'wss' : 'ws';
-            const pin = data.pin || '4821';
+            const pin = data.pin || '';
             const port = data.port || 8990;
             const phoneWebUrl = `${proto}://${primaryIp}:${port}/?ip=${primaryIp}&port=${port}&pin=${pin}&proto=${wsProto}`;
             setServerInfo({
@@ -111,13 +116,13 @@ export const App: React.FC = () => {
         }
 
         const defaultIp = '10.106.174.208';
-        const defaultUrl = `https://${defaultIp}:8990/?ip=${defaultIp}&port=8990&pin=4821&proto=wss`;
+        const defaultUrl = `https://${defaultIp}:8990/?ip=${defaultIp}&port=8990&pin=&proto=wss`;
         setServerInfo({
           addresses: [{ name: 'USB Tethering Adapter (Ethernet 4)', address: defaultIp, isWireless: false }],
           selectedAddress: defaultIp,
           port: 8990,
           protocol: 'https',
-          pin: '4821',
+          pin: '',
           qrPayload: defaultUrl,
           phoneWebUrl: defaultUrl
         });
@@ -126,7 +131,7 @@ export const App: React.FC = () => {
 
       fetchServerInfo();
     }
-  }, [audioEngine]);
+  }, []);
 
   const handleRegeneratePin = useCallback(async () => {
     if (window.phoneMicDesktop) {
