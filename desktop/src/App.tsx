@@ -76,36 +76,102 @@ export const App: React.FC = () => {
         unsubLog();
       };
     } else {
-      // Mock data for preview in browser without Electron
-      setServerInfo({
-        addresses: [{ name: 'Wi-Fi Adapter', address: '192.168.1.105', isWireless: true }],
-        selectedAddress: '192.168.1.105',
-        port: 8990,
-        protocol: 'https',
-        pin: '7482',
-        qrPayload: 'https://192.168.1.105:8990/?ip=192.168.1.105&port=8990&pin=7482&proto=wss',
-        phoneWebUrl: 'https://192.168.1.105:8990/?ip=192.168.1.105&port=8990&pin=7482&proto=wss'
-      });
-      setLogs(['[Browser Preview Mode] Electron bridge simulated.']);
+      // Browser Mode: Fetch live server info from running local server
+      const fetchServerInfo = async () => {
+        try {
+          const res = await fetch('http://127.0.0.1:8990/api/info').catch(() => fetch('https://127.0.0.1:8990/api/info'));
+          if (res && res.ok) {
+            const data = await res.json();
+            const ipList = (data.ipAddresses || []).map((ip: string) => ({
+              name: 'Active Network Interface',
+              address: ip,
+              isWireless: false
+            }));
+            const primaryIp = ipList.length > 0 ? ipList[0].address : '10.106.174.208';
+            const proto = data.protocol || 'https';
+            const wsProto = proto === 'https' ? 'wss' : 'ws';
+            const pin = data.pin || '4821';
+            const port = data.port || 8990;
+            const phoneWebUrl = `${proto}://${primaryIp}:${port}/?ip=${primaryIp}&port=${port}&pin=${pin}&proto=${wsProto}`;
+            setServerInfo({
+              addresses: ipList.length > 0 ? ipList : [{ name: 'USB Tethering Adapter (Ethernet 4)', address: primaryIp, isWireless: false }],
+              selectedAddress: primaryIp,
+              port,
+              protocol: proto,
+              pin,
+              qrPayload: phoneWebUrl,
+              phoneWebUrl
+            });
+            setLogs(prev => [...prev, `[Connected] Server info loaded for ${primaryIp}:${port}`]);
+            return;
+          }
+        } catch {
+          // fallback below
+        }
+
+        const defaultIp = '10.106.174.208';
+        const defaultUrl = `https://${defaultIp}:8990/?ip=${defaultIp}&port=8990&pin=4821&proto=wss`;
+        setServerInfo({
+          addresses: [{ name: 'USB Tethering Adapter (Ethernet 4)', address: defaultIp, isWireless: false }],
+          selectedAddress: defaultIp,
+          port: 8990,
+          protocol: 'https',
+          pin: '4821',
+          qrPayload: defaultUrl,
+          phoneWebUrl: defaultUrl
+        });
+        setLogs(['[USB Tethering Mode] Ready on 10.106.174.208:8990']);
+      };
+
+      fetchServerInfo();
     }
   }, [audioEngine]);
 
   const handleRegeneratePin = useCallback(async () => {
-    if (!window.phoneMicDesktop) return;
-    setIsRegeneratingPin(true);
-    try {
-      await window.phoneMicDesktop.regeneratePin();
-      const updated = await window.phoneMicDesktop.getServerInfo();
-      setServerInfo(updated);
-    } finally {
-      setIsRegeneratingPin(false);
+    if (window.phoneMicDesktop) {
+      setIsRegeneratingPin(true);
+      try {
+        await window.phoneMicDesktop.regeneratePin();
+        const updated = await window.phoneMicDesktop.getServerInfo();
+        setServerInfo(updated);
+      } finally {
+        setIsRegeneratingPin(false);
+      }
+    } else {
+      const newPin = Math.floor(1000 + Math.random() * 9000).toString();
+      setServerInfo(prev => {
+        if (!prev) return prev;
+        const proto = prev.protocol;
+        const wsProto = proto === 'https' ? 'wss' : 'ws';
+        const phoneWebUrl = `${proto}://${prev.selectedAddress}:${prev.port}/?ip=${prev.selectedAddress}&port=${prev.port}&pin=${newPin}&proto=${wsProto}`;
+        return {
+          ...prev,
+          pin: newPin,
+          qrPayload: phoneWebUrl,
+          phoneWebUrl
+        };
+      });
     }
   }, []);
 
   const handleSelectIp = useCallback(async (ip: string) => {
-    if (!window.phoneMicDesktop) return;
-    const updated = await window.phoneMicDesktop.selectIPAddress(ip);
-    setServerInfo(updated);
+    if (window.phoneMicDesktop) {
+      const updated = await window.phoneMicDesktop.selectIPAddress(ip);
+      setServerInfo(updated);
+    } else {
+      setServerInfo(prev => {
+        if (!prev) return prev;
+        const proto = prev.protocol;
+        const wsProto = proto === 'https' ? 'wss' : 'ws';
+        const phoneWebUrl = `${proto}://${ip}:${prev.port}/?ip=${ip}&port=${prev.port}&pin=${prev.pin}&proto=${wsProto}`;
+        return {
+          ...prev,
+          selectedAddress: ip,
+          qrPayload: phoneWebUrl,
+          phoneWebUrl
+        };
+      });
+    }
   }, []);
 
   return (

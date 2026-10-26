@@ -136,8 +136,29 @@ export const QRCodeCard: React.FC<QRCodeCardProps> = ({
 
       {/* Network Interface Switcher */}
       <div style={{ marginBottom: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>
-          <Network size={14} /> Network Interface (PC IP)
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+            <Network size={14} /> Network Interface (PC IP)
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              const custom = prompt('Enter PC IP Address (e.g. 10.106.174.208):', serverInfo?.selectedAddress || '10.106.174.208');
+              if (custom && custom.trim()) {
+                onSelectIp(custom.trim());
+              }
+            }}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: 'var(--accent-emerald)',
+              fontSize: '0.72rem',
+              fontWeight: 600,
+              cursor: 'pointer'
+            }}
+          >
+            Custom IP...
+          </button>
         </div>
         <select
           value={serverInfo?.selectedAddress || ''}
@@ -160,6 +181,11 @@ export const QRCodeCard: React.FC<QRCodeCardProps> = ({
               {addr.name} — {addr.address} {addr.isWireless ? '(Wi-Fi)' : ''}
             </option>
           ))}
+          {serverInfo?.selectedAddress && !serverInfo.addresses.some(a => a.address === serverInfo.selectedAddress) && (
+            <option value={serverInfo.selectedAddress} style={{ background: '#0e131f' }}>
+              Active Tethering IP — {serverInfo.selectedAddress}
+            </option>
+          )}
         </select>
       </div>
 

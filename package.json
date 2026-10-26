@@ -12,10 +12,12 @@
     "dev:phone": "npm run --workspace=phone dev",
     "build:phone": "npm run --workspace=phone build",
     "dev:desktop": "npm run --workspace=desktop dev",
+    "dev:electron": "npm run --workspace=desktop dev:electron",
+    "server": "npx tsx desktop/electron/server/standalone.ts",
     "build:desktop": "npm run --workspace=desktop build",
     "package:desktop": "npm run --workspace=desktop package",
     "test": "npx tsx scripts/test-e2e.ts",
-    "start": "concurrently \"npm run dev:phone\" \"npm run dev:desktop\""
+    "start": "concurrently \"npm run server\" \"npm run dev:phone\" \"npm run dev:desktop\""
   },
   "devDependencies": {
     "concurrently": "^9.1.2",
