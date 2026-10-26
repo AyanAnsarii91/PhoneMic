@@ -5,11 +5,15 @@ import path from 'path';
 import { generateLocalTLSCertificate } from './certGenerator.js';
 import { getLocalIPAddresses } from './networkUtils.js';
 
+import { DeviceInfo, VirtualAudioDeviceStatus } from '@phonemic/shared';
+
 export interface HttpServerConfig {
   port: number;
   useHttps: boolean;
   pin?: string;
   getPin?: () => string;
+  getActiveDevice?: () => DeviceInfo | null;
+  getVirtualMicStatus?: () => VirtualAudioDeviceStatus;
 }
 
 export interface ServerInstance {
@@ -65,7 +69,21 @@ export function createHttpServer(config: HttpServerConfig): ServerInstance {
         port: config.port,
         protocol: config.useHttps ? 'https' : 'http',
         pin: currentPin,
-        ipAddresses: addresses
+        ipAddresses: addresses,
+        activeDevice: config.getActiveDevice ? config.getActiveDevice() : null,
+        virtualMicStatus: config.getVirtualMicStatus ? config.getVirtualMicStatus() : null
+      }));
+      return;
+    }
+
+    // JSON status endpoint for live dashboard polling
+    if (url.pathname === '/api/status') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: true,
+        activeDevice: config.getActiveDevice ? config.getActiveDevice() : null,
+        virtualMicStatus: config.getVirtualMicStatus ? config.getVirtualMicStatus() : null,
+        timestamp: Date.now()
       }));
       return;
     }

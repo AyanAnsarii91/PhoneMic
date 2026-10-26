@@ -35,11 +35,19 @@ export const App: React.FC = () => {
   audioEngineRef.current = audioEngine;
 
   // Load server info on mount
+  // Load server info on mount
   useEffect(() => {
     if (window.phoneMicDesktop) {
       window.phoneMicDesktop.getServerInfo().then(setServerInfo).catch(console.error);
       window.phoneMicDesktop.getVirtualMicStatus().then(setVirtualMicStatus).catch(console.error);
       window.phoneMicDesktop.getVirtualMicInstructions().then(setVirtualMicInstructions).catch(console.error);
+
+      // Fetch active device immediately if already connected/paired
+      if (window.phoneMicDesktop.getActiveDevice) {
+        window.phoneMicDesktop.getActiveDevice().then(dev => {
+          if (dev) setConnectedDevice(dev);
+        }).catch(console.error);
+      }
 
       // Listen for audio telemetry and PCM samples
       const unsubAudio = window.phoneMicDesktop.onAudioData((telemetry: AudioPacketTelemetry) => {
@@ -47,6 +55,27 @@ export const App: React.FC = () => {
         setLatestDb(telemetry.db);
         setLatestLatency(telemetry.latencyMs);
         setPacketsReceived(prev => prev + 1);
+
+        // Ensure active streaming state is reflected if packets are arriving
+        setConnectedDevice(prev => {
+          if (!prev) {
+            return {
+              id: 'active-session',
+              name: 'Connected Phone',
+              ip: 'Active Stream',
+              connectedAt: Date.now(),
+              isStreaming: true,
+              isMuted: false,
+              latencyMs: telemetry.latencyMs,
+              sampleRate: 48000,
+              volumePeak: telemetry.peak
+            };
+          }
+          if (!prev.isStreaming) {
+            return { ...prev, isStreaming: true, volumePeak: telemetry.peak, latencyMs: telemetry.latencyMs };
+          }
+          return prev;
+        });
 
         // Feed into PC audio monitoring / virtual cable destination
         audioEngineRef.current.playPcmChunk(telemetry.pcmData);
@@ -71,7 +100,16 @@ export const App: React.FC = () => {
         setLogs(prev => [...prev.slice(-100), log]);
       });
 
+      // Poll periodically to keep virtual mic status and device connection state fresh
+      const pollTimer = setInterval(() => {
+        window.phoneMicDesktop?.getVirtualMicStatus?.().then(setVirtualMicStatus).catch(() => {});
+        window.phoneMicDesktop?.getActiveDevice?.().then(dev => {
+          if (dev) setConnectedDevice(dev);
+        }).catch(() => {});
+      }, 1500);
+
       return () => {
+        clearInterval(pollTimer);
         unsubAudio();
         unsubConnected();
         unsubDisconnected();
@@ -108,6 +146,12 @@ export const App: React.FC = () => {
               qrPayload: phoneWebUrl,
               phoneWebUrl
             });
+            if (data.activeDevice) {
+              setConnectedDevice(data.activeDevice);
+            }
+            if (data.virtualMicStatus) {
+              setVirtualMicStatus(data.virtualMicStatus);
+            }
             setLogs(prev => [...prev, `[Connected] Server info loaded for ${primaryIp}:${port}`]);
             return;
           }
@@ -130,6 +174,39 @@ export const App: React.FC = () => {
       };
 
       fetchServerInfo();
+
+      // Poll /api/status periodically to sync connected device and virtual mic status
+      const pollTimer = setInterval(async () => {
+        try {
+          const res = await fetch('/api/status')
+            .catch(() => fetch('http://127.0.0.1:8990/api/status'))
+            .catch(() => fetch('https://127.0.0.1:8990/api/status'));
+          if (res && res.ok) {
+            const data = await res.json();
+            if (data.activeDevice) {
+              setConnectedDevice(data.activeDevice);
+              if (data.activeDevice.volumePeak !== undefined) {
+                setLatestPeak(data.activeDevice.volumePeak);
+              }
+              if (data.activeDevice.latencyMs !== undefined) {
+                setLatestLatency(data.activeDevice.latencyMs);
+              }
+            }
+            if (data.virtualMicStatus) {
+              setVirtualMicStatus(data.virtualMicStatus);
+              if (data.virtualMicStatus.routedPackets) {
+                setPacketsReceived(data.virtualMicStatus.routedPackets);
+              }
+            }
+          }
+        } catch {
+          // ignore
+        }
+      }, 1500);
+
+      return () => {
+        clearInterval(pollTimer);
+      };
     }
   }, []);
 
@@ -322,6 +399,10 @@ export const App: React.FC = () => {
           <VirtualMicBridgeCard
             status={virtualMicStatus}
             instructions={virtualMicInstructions}
+            latestPeak={latestPeak}
+            latestDb={latestDb}
+            packetsReceived={packetsReceived}
+            isStreaming={!!connectedDevice?.isStreaming}
           />
 
           <LogsPanel

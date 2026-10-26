@@ -9,6 +9,7 @@ import {
 
 const api: PhoneMicDesktopAPI = {
   getServerInfo: () => ipcRenderer.invoke('get-server-info'),
+  getActiveDevice: () => ipcRenderer.invoke('get-active-device'),
   regeneratePin: () => ipcRenderer.invoke('regenerate-pin'),
   selectIPAddress: (ip: string) => ipcRenderer.invoke('select-ip', ip),
   getVirtualMicStatus: () => ipcRenderer.invoke('get-virtual-mic-status'),

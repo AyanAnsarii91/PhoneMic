@@ -47,9 +47,21 @@ export function useDesktopAudio() {
   }, [getAudioContext]);
 
   // Enumerate available Windows audio output devices
+  // Enumerate available Windows audio output devices
   const refreshOutputDevices = useCallback(async () => {
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+      
+      // Attempt to ensure microphone permission is granted so device labels are visible in Chromium
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true }).catch(() => null);
+        if (stream) {
+          stream.getTracks().forEach(track => track.stop());
+        }
+      } catch {
+        // Fallback if permission not granted yet
+      }
+
       const devices = await navigator.mediaDevices.enumerateDevices();
       const audioOutputs = devices
         .filter(d => d.kind === 'audiooutput')
@@ -96,7 +108,7 @@ export function useDesktopAudio() {
 
     const ctx = getAudioContext();
     if (ctx.state === 'suspended') {
-      ctx.resume();
+      ctx.resume().catch(() => {});
     }
 
     if (gainNodeRef.current) {
@@ -111,7 +123,7 @@ export function useDesktopAudio() {
     try {
       const ctx = getAudioContext();
       if (ctx.state === 'suspended') {
-        ctx.resume();
+        ctx.resume().catch(() => {});
       }
 
       const sampleCount = pcmInt16.length;
@@ -134,10 +146,12 @@ export function useDesktopAudio() {
       }
 
       const now = ctx.currentTime;
-      // Schedule chunk smoothly to avoid audio clicks
-      const startTime = Math.max(now, nextPlayTimeRef.current);
-      source.start(startTime);
-      nextPlayTimeRef.current = startTime + audioBuffer.duration;
+      // Prevent scheduling drift: if nextPlayTime is too far behind or ahead, reset to now
+      if (nextPlayTimeRef.current < now || nextPlayTimeRef.current > now + 0.25) {
+        nextPlayTimeRef.current = now;
+      }
+      source.start(nextPlayTimeRef.current);
+      nextPlayTimeRef.current = nextPlayTimeRef.current + audioBuffer.duration;
     } catch (err) {
       console.warn('Error playing audio chunk:', err);
     }

@@ -106,10 +106,26 @@ export interface VirtualAudioDeviceStatus {
   channelCount: number;
   routedPackets: number;
   error?: string;
+
+  // Real-time audio pipeline diagnostic metrics
+  isOpen?: boolean;
+  openedEndpoint?: string;
+  routedBytes?: number;
+  inputPeak?: number;
+  inputRms?: number;
+  outputPeak?: number;
+  outputRms?: number;
+  isWritingContinuously?: boolean;
+  lastWriteTimestamp?: number;
+  underruns?: number;
+  writeErrors?: number;
+  formatMismatch?: boolean;
+  diagnosticMessage?: string;
 }
 
 export interface PhoneMicDesktopAPI {
   getServerInfo: () => Promise<ServerInfo>;
+  getActiveDevice?: () => Promise<DeviceInfo | null>;
   regeneratePin: () => Promise<string>;
   selectIPAddress: (ip: string) => Promise<ServerInfo>;
   getVirtualMicStatus: () => Promise<VirtualAudioDeviceStatus>;

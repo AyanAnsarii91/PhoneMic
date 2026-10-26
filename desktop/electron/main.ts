@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, session } from 'electron';
 import path from 'path';
 import { createHttpServer, ServerInstance } from './server/httpServer';
 import { PhoneMicWSServer } from './server/wsServer';
@@ -13,6 +13,8 @@ const virtualMicManager = new VirtualMicManager();
 
 // Ignore self-signed certificate errors for local development loopback
 app.commandLine.appendSwitch('ignore-certificate-errors');
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
+app.commandLine.appendSwitch('use-fake-ui-for-media-stream');
 
 let selectedIP = '';
 const SERVER_PORT = DEFAULT_PORT;
@@ -62,7 +64,9 @@ function startServers() {
   serverInstance = createHttpServer({
     port: SERVER_PORT,
     useHttps: USE_HTTPS,
-    getPin: () => (wsServer ? wsServer.getPIN() : '0000')
+    getPin: () => (wsServer ? wsServer.getPIN() : '0000'),
+    getActiveDevice: () => (wsServer ? wsServer.getActiveDevice() : null),
+    getVirtualMicStatus: () => virtualMicManager.getStatus()
   });
 
   // Initialize and start Virtual Audio Device Adapter (VB-Audio Cable bridge)
@@ -133,6 +137,13 @@ function createWindow() {
     }
   });
 
+  // Automatically grant media device and audio permissions
+  session.defaultSession.setPermissionCheckHandler(() => true);
+  session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => {
+    callback(true);
+  });
+  session.defaultSession.setDevicePermissionHandler(() => true);
+
   // In development, load from Vite dev server or build
   const isDev = !app.isPackaged && process.env.NODE_ENV !== 'production';
   if (isDev) {
@@ -149,6 +160,10 @@ function createWindow() {
 // IPC Handlers
 ipcMain.handle('get-server-info', async () => {
   return constructServerInfo();
+});
+
+ipcMain.handle('get-active-device', async () => {
+  return wsServer ? wsServer.getActiveDevice() : null;
 });
 
 ipcMain.handle('regenerate-pin', async () => {

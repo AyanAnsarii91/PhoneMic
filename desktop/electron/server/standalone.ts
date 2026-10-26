@@ -1,6 +1,7 @@
 import { createHttpServer } from './httpServer.js';
 import { PhoneMicWSServer } from './wsServer.js';
 import { getLocalIPAddresses, getPrimaryLANIP } from './networkUtils.js';
+import { VirtualMicManager } from '../audio/virtualMicAdapter.js';
 import { DEFAULT_PORT, sanitizeHostAndPort } from '@phonemic/shared';
 
 const SERVER_PORT = DEFAULT_PORT;
@@ -14,18 +15,47 @@ console.log('====================================================');
 console.log('   🎙️ PhoneMic Server (Standalone / Local Mode)   ');
 console.log('====================================================\n');
 
+const virtualMicManager = new VirtualMicManager();
+
+// Initialize Windows Virtual Audio Adapter (VB-Audio CABLE Input)
+virtualMicManager.getActiveAdapter().initialize().then(() => {
+  virtualMicManager.getActiveAdapter().start().then((started) => {
+    const status = virtualMicManager.getStatus();
+    if (started && status.isOpen) {
+      console.log(`✅ PhoneMic Virtual Audio Adapter ACTIVE -> Writing to: ${status.openedEndpoint}`);
+    } else {
+      console.warn(`⚠️ PhoneMic Virtual Audio Adapter standby (${status.diagnosticMessage})`);
+    }
+  });
+});
+
 let wsServer: PhoneMicWSServer;
 const serverInstance = createHttpServer({
   port: SERVER_PORT,
   useHttps: USE_HTTPS,
-  getPin: () => (wsServer ? wsServer.getPIN() : '0000')
+  getPin: () => (wsServer ? wsServer.getPIN() : '0000'),
+  getActiveDevice: () => (wsServer ? wsServer.getActiveDevice() : null),
+  getVirtualMicStatus: () => virtualMicManager.getStatus()
 });
 
 wsServer = new PhoneMicWSServer({
   server: serverInstance.server,
   onAudioChunk: (chunk) => {
+    // 1. Extract 16-bit PCM samples
+    const sampleCount = chunk.pcmBuffer.length / 2;
+    const int16Samples = new Int16Array(sampleCount);
+    for (let i = 0; i < sampleCount; i++) {
+      int16Samples[i] = chunk.pcmBuffer.readInt16LE(i * 2);
+    }
+
+    // 2. Stream audio directly to VB-Audio CABLE Input
+    virtualMicManager.getActiveAdapter().writeAudioChunk(int16Samples);
+
     if (chunk.seq % 50 === 0) {
-      console.log(`[Audio Streaming] Seq: #${chunk.seq} | Latency: ${chunk.latencyMs}ms | Peak: ${chunk.peak.toFixed(2)} | dB: ${chunk.db.toFixed(1)} dB`);
+      const status = virtualMicManager.getStatus();
+      const endpoint = status.openedEndpoint || 'CABLE Input';
+      const routingStatus = status.isOpen && status.isWritingContinuously ? 'ACTIVE' : 'FAILING';
+      console.log(`[Audio Streaming] Seq: #${chunk.seq} | Latency: ${chunk.latencyMs}ms | In Peak: ${chunk.peak.toFixed(3)} | Out Peak: ${(status.outputPeak || 0).toFixed(3)} | VB-CABLE: ${routingStatus} (${endpoint})`);
     }
   },
   onClientConnected: (device) => {
@@ -53,4 +83,19 @@ serverInstance.server.listen(SERVER_PORT, '0.0.0.0', () => {
   console.log(`   👉 ${pairingUrl}\n`);
   console.log(`Server listening on port ${SERVER_PORT} over ${proto.toUpperCase()} (0.0.0.0)`);
   console.log('====================================================\n');
+});
+
+process.on('SIGINT', async () => {
+  console.log('\nStopping PhoneMic Standalone Server...');
+  await virtualMicManager.getActiveAdapter().stop();
+  wsServer.close();
+  serverInstance.server.close();
+  process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+  await virtualMicManager.getActiveAdapter().stop();
+  wsServer.close();
+  serverInstance.server.close();
+  process.exit(0);
 });
