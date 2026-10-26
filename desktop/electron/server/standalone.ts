@@ -14,13 +14,14 @@ console.log('====================================================');
 console.log('   🎙️ PhoneMic Server (Standalone / Local Mode)   ');
 console.log('====================================================\n');
 
+let wsServer: PhoneMicWSServer;
 const serverInstance = createHttpServer({
   port: SERVER_PORT,
   useHttps: USE_HTTPS,
-  pin: '0000'
+  getPin: () => (wsServer ? wsServer.getPIN() : '0000')
 });
 
-const wsServer = new PhoneMicWSServer({
+wsServer = new PhoneMicWSServer({
   server: serverInstance.server,
   onAudioChunk: (chunk) => {
     if (chunk.seq % 50 === 0) {

@@ -21,18 +21,20 @@ async function runEndToEndVerification() {
   console.log(`  Target Virtual Device: ${adapterStatus.targetDeviceName}`);
   console.log(`  Active: ${adapterStatus.isActive ? 'YES' : 'NO'}`);
 
+  let wsServer: PhoneMicWSServer;
+
   console.log('\n[2/6] Starting PhoneMic HTTPS & WebSocket Server...');
   const serverInstance = createHttpServer({
     port: TEST_PORT,
     useHttps: true,
-    pin: '0000'
+    getPin: () => (wsServer ? wsServer.getPIN() : '0000')
   });
 
   let serverReceivedPackets = 0;
   let clientConnected = false;
   let testPassed = false;
 
-  const wsServer = new PhoneMicWSServer({
+  wsServer = new PhoneMicWSServer({
     server: serverInstance.server,
     onAudioChunk: (chunk) => {
       serverReceivedPackets++;

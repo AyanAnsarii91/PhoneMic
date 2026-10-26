@@ -59,7 +59,7 @@ function startServers() {
   serverInstance = createHttpServer({
     port: SERVER_PORT,
     useHttps: USE_HTTPS,
-    pin: '0000' // updated once wsServer generates PIN
+    getPin: () => (wsServer ? wsServer.getPIN() : '0000')
   });
 
   // Create WebSocket Server
